@@ -3,6 +3,7 @@ import { View, FlatList, StyleSheet, Text } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { getExpensesFromStorage, saveExpensesToStorage } from '../utils/storage';
 import { ExpenseItem } from '../components/ExpenseItem';
+import { Alert } from 'react-native';
 
 export default function AllExpenses() {
   const [expenses, setExpenses] = useState([]);
@@ -26,12 +27,31 @@ export default function AllExpenses() {
     await saveExpensesToStorage(updatedList);
   }
 
+  async function deleteHandler(id) {
+  Alert.alert(
+    "Delete Expense",
+    "Are you sure you want to delete this record?",
+    [
+      { text: "No", style: "cancel" },
+      { 
+        text: "Yes, Delete", 
+        style: "destructive", 
+        onPress: async () => {
+          const updatedList = expenses.filter(item => item.id !== id);
+          setExpenses(updatedList);
+          await saveExpensesToStorage(updatedList);
+        } 
+      }
+    ]
+  );
+}
+
   const total = expenses.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
 
   return (
     <View style={styles.container}>
       <View style={styles.infoCard}>
-        <Text style={styles.text}>Total Historical Spending</Text>
+        <Text style={styles.text}>Monthly Spends</Text>
         <Text style={styles.total}>₹{total.toLocaleString('en-IN')}</Text>
       </View>
       <FlatList 

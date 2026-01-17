@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, FlatList, StyleSheet } from 'react-native';
+import { View, FlatList, StyleSheet, Text, Alert } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { getExpensesFromStorage, saveExpensesToStorage } from '../utils/storage';
 import { ExpenseItem } from '../components/ExpenseItem';
@@ -19,33 +19,61 @@ export default function RecentExpenses() {
     setExpenses(data);
   }
 
-  // FIXED: Added the delete logic here
   async function deleteHandler(id) {
-    const updatedList = expenses.filter(item => item.id !== id);
-    setExpenses(updatedList);
-    await saveExpensesToStorage(updatedList);
+    Alert.alert(
+      "Delete Expense",
+      "Are you sure you want to delete this record?",
+      [
+        { text: "No", style: "cancel" },
+        { 
+          text: "Yes, Delete", 
+          style: "destructive", 
+          onPress: async () => {
+            const updatedList = expenses.filter(item => item.id !== id);
+            setExpenses(updatedList);
+            await saveExpensesToStorage(updatedList);
+          } 
+        }
+      ]
+    );
   }
 
-  const recent = expenses.filter(exp => {
+  // Filter logic: Only items from the last 7 days
+  const recentExpenses = expenses.filter(exp => {
     const today = new Date();
-    const expDate = new Date(parseInt(exp.id)); 
-    const diff = (today - expDate) / (1000 * 60 * 60 * 24);
-    return diff <= 7;
+    const expDate = new Date(exp.date);
+    const diffInDays = (today - expDate) / (1000 * 60 * 60 * 24);
+    return diffInDays <= 7;
   });
+
+  const recentTotal = recentExpenses.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
 
   return (
     <View style={styles.container}>
+      {/* Matches AllExpenses Styling */}
+      <View style={styles.infoCard}>
+        <Text style={styles.text}>Last 7 Days Spends</Text>
+        <Text style={styles.total}>₹{recentTotal.toLocaleString('en-IN')}</Text>
+      </View>
+
       <FlatList 
-        data={recent} 
+        data={recentExpenses} 
         keyExtractor={(item) => item.id} 
         renderItem={({item}) => (
-          <ExpenseItem item={item} onDelete={deleteHandler} /> // FIXED: Passing onDelete
-        )} 
+          <ExpenseItem item={item} onDelete={deleteHandler} />
+        )}
+        ListEmptyComponent={
+          <Text style={styles.emptyText}>No expenses tracked in the last 7 days.</Text>
+        }
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#F8F9FA' }
+  container: { flex: 1, padding: 20, backgroundColor: '#F8F9FA' },
+  infoCard: { backgroundColor: '#007AFF', padding: 15, borderRadius: 10, marginBottom: 15 },
+  text: { color: 'white', opacity: 0.8 },
+  total: { color: 'white', fontSize: 24, fontWeight: 'bold' },
+  emptyText: { textAlign: 'center', marginTop: 40, color: '#999' }
 });
