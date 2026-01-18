@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, FlatList, StyleSheet, Text } from 'react-native';
+import { View, FlatList, StyleSheet, Text, ActivityIndicator } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { getExpensesFromStorage, saveExpensesToStorage } from '../utils/storage';
 import { ExpenseItem } from '../components/ExpenseItem';
@@ -20,6 +20,28 @@ export default function AllExpenses() {
     const data = await getExpensesFromStorage();
     setExpenses(data);
   }
+
+  const [isLoading, setIsLoading] = useState(true);
+
+useEffect(() => {
+  async function fetchExpenses() {
+    setIsLoading(true);
+    const data = await getExpensesFromStorage();
+    setExpenses(data);
+    setIsLoading(false);
+  }
+  if (isFocused) {
+    fetchExpenses();
+  }
+}, [isFocused]);
+
+if (isLoading) {
+  return (
+    <View style={{ flex: 1, justifyContent: 'center' }}>
+      <ActivityIndicator size="large" color="#007AFF" />
+    </View>
+  );
+}
 
   // FIXED: Added the delete logic here
   async function deleteHandler(id) {
@@ -48,28 +70,19 @@ export default function AllExpenses() {
 }
 
 async function deleteHandler(id) {
-  Alert.alert(
-    "Delete Expense",
-    "Are you sure?",
-    [
-      { text: "No", style: "cancel" },
-      { 
-        text: "Yes, Delete", 
-        style: "destructive", 
-        onPress: async () => {
-          try {
-            // 1. Delete from Firebase
-            await deleteExpenseFromStorage(id);
-            // 2. Remove from local screen state
-            const updatedList = expenses.filter(item => item.id !== id);
-            setExpenses(updatedList);
-          } catch (error) {
-            Alert.alert("Error", "Could not delete from cloud.");
-          }
-        } 
-      }
-    ]
-  );
+  // 1. Instantly update the UI (Optimistic Update)
+  const originalExpenses = [...expenses];
+  const updatedList = expenses.filter(item => item.id !== id);
+  setExpenses(updatedList);
+
+  try {
+    // 2. Delete from Firebase
+    await deleteExpenseFromStorage(id);
+  } catch (error) {
+    // 3. If cloud delete fails, roll back the UI and alert the user
+    setExpenses(originalExpenses);
+    Alert.alert("Error", "Cloud sync failed. Item was not deleted.");
+  }
 }
 
   const total = expenses.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);

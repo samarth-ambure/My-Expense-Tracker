@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, FlatList, StyleSheet, Text, Alert } from 'react-native';
+import { View, FlatList, StyleSheet, Text, Alert, ActivityIndicator } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { getExpensesFromStorage, saveExpensesToStorage } from '../utils/storage';
 import { ExpenseItem } from '../components/ExpenseItem';
@@ -20,24 +20,43 @@ export default function RecentExpenses() {
     setExpenses(data);
   }
 
-  async function deleteHandler(id) {
-    Alert.alert(
-      "Delete Expense",
-      "Are you sure you want to delete this record?",
-      [
-        { text: "No", style: "cancel" },
-        { 
-          text: "Yes, Delete", 
-          style: "destructive", 
-          onPress: async () => {
-            const updatedList = expenses.filter(item => item.id !== id);
-            setExpenses(updatedList);
-            await saveExpensesToStorage(updatedList);
-          } 
-        }
-      ]
-    );
+  const [isLoading, setIsLoading] = useState(true);
+
+useEffect(() => {
+  async function fetchExpenses() {
+    setIsLoading(true);
+    const data = await getExpensesFromStorage();
+    setExpenses(data);
+    setIsLoading(false);
   }
+  if (isFocused) {
+    fetchExpenses();
+  }
+}, [isFocused]);
+
+if (isLoading) {
+  return (
+    <View style={{ flex: 1, justifyContent: 'center' }}>
+      <ActivityIndicator size="large" color="#007AFF" />
+    </View>
+  );
+}
+
+async function deleteHandler(id) {
+  // 1. Instantly update the UI (Optimistic Update)
+  const originalExpenses = [...expenses];
+  const updatedList = expenses.filter(item => item.id !== id);
+  setExpenses(updatedList);
+
+  try {
+    // 2. Delete from Firebase
+    await deleteExpenseFromStorage(id);
+  } catch (error) {
+    // 3. If cloud delete fails, roll back the UI and alert the user
+    setExpenses(originalExpenses);
+    Alert.alert("Error", "Cloud sync failed. Item was not deleted.");
+  }
+}
 
   async function deleteHandler(id) {
   Alert.alert(
