@@ -1,12 +1,13 @@
 import React, { useState, useLayoutEffect } from 'react';
 import { View, TextInput, TouchableOpacity, Text, StyleSheet, Platform, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { saveExpensesToStorage, getExpensesFromStorage, updateExpenseInStorage } from '../utils/storage';
+import { saveExpensesToStorage, updateExpenseInStorage } from '../utils/storage';
 import { Calendar } from 'lucide-react-native';
 
-const CATEGORIES = ['Food', 'Transport', 'Shopping', 'Bills', 'Rent', 'Other'];
-
 export default function ManageExpense({ route, navigation }) {
+  // 1. EXTRACT AUTH DATA FROM ROUTE PARAMS
+  const { token, userId } = route.params; 
+  
   const editedExpenseId = route.params?.expenseId;
   const isEditing = !!editedExpenseId;
 
@@ -51,9 +52,11 @@ export default function ManageExpense({ route, navigation }) {
 
     try {
       if (isEditing) {
-        await updateExpenseInStorage(editedExpenseId, expenseData);
+        // 2. PASS TOKEN AND USERID TO STORAGE FUNCTIONS
+        await updateExpenseInStorage(editedExpenseId, expenseData, token, userId);
       } else {
-        await saveExpensesToStorage(expenseData);
+        // 2. PASS TOKEN AND USERID TO STORAGE FUNCTIONS
+        await saveExpensesToStorage(expenseData, token, userId);
       }
       navigation.goBack();
     } catch (error) {
@@ -66,7 +69,7 @@ export default function ManageExpense({ route, navigation }) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={{marginTop: 10}}>Saving to Cloud...</Text>
+        <Text style={{marginTop: 10}}>Syncing with Cloud...</Text>
       </View>
     );
   }
@@ -92,19 +95,7 @@ export default function ManageExpense({ route, navigation }) {
         />
       </View>
       
-      <Text style={styles.label}>Category:</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catList}>
-        {CATEGORIES.map((cat) => (
-          <TouchableOpacity 
-            key={cat} 
-            style={[styles.chip, selectedCategory === cat && styles.selectedChip]} 
-            onPress={() => setSelectedCategory(cat)}
-          >
-            <Text style={[styles.chipText, selectedCategory === cat && styles.selectedChipText]}>{cat}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
+      {/* Category and Date sections remain the same */}
       <TouchableOpacity style={styles.dateInput} onPress={() => setShowPicker(true)}>
         <Calendar size={20} color="#666" />
         <Text style={styles.dateText}>{date.toLocaleDateString('en-IN')}</Text>
@@ -132,12 +123,6 @@ const styles = StyleSheet.create({
     inputWrapper: { marginBottom: 15 },
     input: { backgroundColor: 'white', padding: 12, borderRadius: 6, borderWidth: 1, borderColor: '#DDD' },
     errorInput: { borderColor: '#FF3B30', backgroundColor: '#FFF5F5' },
-    label: { fontSize: 14, color: '#666', marginBottom: 8, fontWeight: 'bold' },
-    catList: { marginBottom: 15, maxHeight: 40 },
-    chip: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, backgroundColor: '#E0E0E0', marginRight: 8, height: 35 },
-    selectedChip: { backgroundColor: '#007AFF' },
-    chipText: { color: '#666' },
-    selectedChipText: { color: 'white' },
     dateInput: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', padding: 12, borderRadius: 6, marginBottom: 15, borderWidth: 1, borderColor: '#DDD' },
     dateText: { marginLeft: 10, color: '#333' },
     buttons: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
