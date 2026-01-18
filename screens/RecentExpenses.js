@@ -1,89 +1,75 @@
-import React, { useEffect, useState } from 'react';
-import { View, FlatList, StyleSheet, Text, Alert, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, FlatList, StyleSheet, Text, Alert, ActivityIndicator, RefreshControl } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
-import { getExpensesFromStorage, saveExpensesToStorage } from '../utils/storage';
+import NetInfo from '@react-native-community/netinfo';
+
+import { getExpensesFromStorage, deleteExpenseFromStorage } from '../utils/storage';
 import { ExpenseItem } from '../components/ExpenseItem';
-import { deleteExpenseFromStorage } from '../utils/storage';
 
 export default function RecentExpenses() {
   const [expenses, setExpenses] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
+  
   const isFocused = useIsFocused();
 
+  // Load data function
+  const loadData = useCallback(async () => {
+    const data = await getExpensesFromStorage();
+    setExpenses(data);
+  }, []);
+
+  // Initial fetch and network listener
   useEffect(() => {
+    const fetchInitial = async () => {
+      setIsLoading(true);
+      await loadData();
+      setIsLoading(false);
+    };
+
     if (isFocused) {
-      loadData();
+      fetchInitial();
     }
-  }, [isFocused]);
 
-  async function loadData() {
-    const data = await getExpensesFromStorage();
-    setExpenses(data);
-  }
+    // Network check listener
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsOffline(!state.isConnected);
+    });
 
-  const [isLoading, setIsLoading] = useState(true);
+    return () => unsubscribe();
+  }, [isFocused, loadData]);
 
-useEffect(() => {
-  async function fetchExpenses() {
-    setIsLoading(true);
-    const data = await getExpensesFromStorage();
-    setExpenses(data);
-    setIsLoading(false);
-  }
-  if (isFocused) {
-    fetchExpenses();
-  }
-}, [isFocused]);
-
-if (isLoading) {
-  return (
-    <View style={{ flex: 1, justifyContent: 'center' }}>
-      <ActivityIndicator size="large" color="#007AFF" />
-    </View>
-  );
-}
-
-async function deleteHandler(id) {
-  // 1. Instantly update the UI (Optimistic Update)
-  const originalExpenses = [...expenses];
-  const updatedList = expenses.filter(item => item.id !== id);
-  setExpenses(updatedList);
-
-  try {
-    // 2. Delete from Firebase
-    await deleteExpenseFromStorage(id);
-  } catch (error) {
-    // 3. If cloud delete fails, roll back the UI and alert the user
-    setExpenses(originalExpenses);
-    Alert.alert("Error", "Cloud sync failed. Item was not deleted.");
-  }
-}
+  // Pull to refresh handler
+  const onRefresh = async () => {
+    setIsRefreshing(true);
+    await loadData();
+    setIsRefreshing(false);
+  };
 
   async function deleteHandler(id) {
-  Alert.alert(
-    "Delete Expense",
-    "Are you sure?",
-    [
-      { text: "No", style: "cancel" },
-      { 
-        text: "Yes, Delete", 
-        style: "destructive", 
-        onPress: async () => {
-          try {
-            // 1. Delete from Firebase
-            await deleteExpenseFromStorage(id);
-            // 2. Remove from local screen state
-            const updatedList = expenses.filter(item => item.id !== id);
-            setExpenses(updatedList);
-          } catch (error) {
-            Alert.alert("Error", "Could not delete from cloud.");
-          }
-        } 
-      }
-    ]
-  );
-}
+    Alert.alert(
+      "Delete Expense",
+      "Are you sure you want to delete this record?",
+      [
+        { text: "No", style: "cancel" },
+        { 
+          text: "Yes, Delete", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              await deleteExpenseFromStorage(id);
+              setExpenses(current => current.filter(item => item.id !== id));
+            } catch (error) {
+              Alert.alert("Error", "Could not delete from cloud. Check your connection.");
+            }
+          } 
+        }
+      ]
+    );
+  }
 
-  // Filter logic: Only items from the last 7 days
+  // Filter logic: Last 7 days
   const recentExpenses = expenses.filter(exp => {
     const today = new Date();
     const expDate = new Date(exp.date);
@@ -93,9 +79,22 @@ async function deleteHandler(id) {
 
   const recentTotal = recentExpenses.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
 
+  if (isLoading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      {/* Matches AllExpenses Styling */}
+      {isOffline && (
+        <View style={styles.offlineBanner}>
+          <Text style={styles.offlineText}>Offline Mode: Data may not be synced</Text>
+        </View>
+      )}
+
       <View style={styles.infoCard}>
         <Text style={styles.text}>Last 7 Days Spends</Text>
         <Text style={styles.total}>₹{recentTotal.toLocaleString('en-IN')}</Text>
@@ -107,6 +106,13 @@ async function deleteHandler(id) {
         renderItem={({item}) => (
           <ExpenseItem item={item} onDelete={deleteHandler} />
         )}
+        refreshControl={
+          <RefreshControl 
+            refreshing={isRefreshing} 
+            onRefresh={onRefresh} 
+            colors={['#007AFF']} 
+          />
+        }
         ListEmptyComponent={
           <Text style={styles.emptyText}>No expenses tracked in the last 7 days.</Text>
         }
@@ -117,8 +123,17 @@ async function deleteHandler(id) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: '#F8F9FA' },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   infoCard: { backgroundColor: '#007AFF', padding: 15, borderRadius: 10, marginBottom: 15 },
   text: { color: 'white', opacity: 0.8 },
   total: { color: 'white', fontSize: 24, fontWeight: 'bold' },
-  emptyText: { textAlign: 'center', marginTop: 40, color: '#999' }
+  emptyText: { textAlign: 'center', marginTop: 40, color: '#999' },
+  offlineBanner: { 
+    backgroundColor: '#FF3B30', 
+    padding: 8, 
+    borderRadius: 5, 
+    marginBottom: 10, 
+    alignItems: 'center' 
+  },
+  offlineText: { color: 'white', fontSize: 12, fontWeight: 'bold' }
 });

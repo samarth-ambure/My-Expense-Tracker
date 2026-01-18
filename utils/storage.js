@@ -1,15 +1,29 @@
 import axios from 'axios';
+import NetInfo from '@react-native-community/netinfo';
+import { Alert } from 'react-native';
 
 const BACKEND_URL = 'https://my-expence-tracker-b677a-default-rtdb.firebaseio.com';
 
-// 1. Send Expense to Firebase (POST)
-export const saveExpensesToStorage = async (expenseData) => {
-  // If we receive an array (from old local logic), we take the first item
-  const dataToSend = Array.isArray(expenseData) ? expenseData[0] : expenseData;
-  const response = await axios.post(`${BACKEND_URL}/expenses.json`, dataToSend);
-  return response.data.name; 
+
+const checkConnection = async () => {
+  const state = await NetInfo.fetch();
+  if (!state.isConnected) {
+    Alert.alert(
+      "No Internet Connection",
+      "Please check your data or Wi-Fi settings to sync your expenses."
+    );
+    return false;
+  }
+  return true;
 };
 
+export const saveExpensesToStorage = async (expenseData) => {
+  const isConnected = await checkConnection();
+  if (!isConnected) throw new Error("No Internet");
+
+  const response = await axios.post(`${BACKEND_URL}/expenses.json`, expenseData);
+  return response.data.name;
+};
 // 2. Fetch all Expenses from Firebase (GET)
 export const getExpensesFromStorage = async () => {
   const response = await axios.get(`${BACKEND_URL}/expenses.json`);
