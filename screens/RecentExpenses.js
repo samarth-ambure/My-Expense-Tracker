@@ -6,7 +6,10 @@ import NetInfo from '@react-native-community/netinfo';
 import { getExpensesFromStorage, deleteExpenseFromStorage } from '../utils/storage';
 import { ExpenseItem } from '../components/ExpenseItem';
 
-export default function RecentExpenses() {
+export default function RecentExpenses({ route }) {
+  // 1. EXTRACT AUTH DATA FROM NAVIGATION PARAMS
+  const { token, userId } = route.params;
+
   const [expenses, setExpenses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -14,13 +17,16 @@ export default function RecentExpenses() {
   
   const isFocused = useIsFocused();
 
-  // Load data function
+  // 2. UPDATED LOAD DATA (Passes Token and UID)
   const loadData = useCallback(async () => {
-    const data = await getExpensesFromStorage();
-    setExpenses(data);
-  }, []);
+    try {
+      const data = await getExpensesFromStorage(token, userId);
+      setExpenses(data);
+    } catch (error) {
+      Alert.alert("Fetch Failed", "Could not load data from cloud.");
+    }
+  }, [token, userId]);
 
-  // Initial fetch and network listener
   useEffect(() => {
     const fetchInitial = async () => {
       setIsLoading(true);
@@ -32,7 +38,6 @@ export default function RecentExpenses() {
       fetchInitial();
     }
 
-    // Network check listener
     const unsubscribe = NetInfo.addEventListener(state => {
       setIsOffline(!state.isConnected);
     });
@@ -40,13 +45,13 @@ export default function RecentExpenses() {
     return () => unsubscribe();
   }, [isFocused, loadData]);
 
-  // Pull to refresh handler
   const onRefresh = async () => {
     setIsRefreshing(true);
     await loadData();
     setIsRefreshing(false);
   };
 
+  // 3. UPDATED DELETE HANDLER (Passes Token and UID)
   async function deleteHandler(id) {
     Alert.alert(
       "Delete Expense",
@@ -58,7 +63,7 @@ export default function RecentExpenses() {
           style: "destructive", 
           onPress: async () => {
             try {
-              await deleteExpenseFromStorage(id);
+              await deleteExpenseFromStorage(id, token, userId);
               setExpenses(current => current.filter(item => item.id !== id));
             } catch (error) {
               Alert.alert("Error", "Could not delete from cloud. Check your connection.");
@@ -69,7 +74,6 @@ export default function RecentExpenses() {
     );
   }
 
-  // Filter logic: Last 7 days
   const recentExpenses = expenses.filter(exp => {
     const today = new Date();
     const expDate = new Date(exp.date);
@@ -83,6 +87,7 @@ export default function RecentExpenses() {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={{marginTop: 10, color: '#666'}}>Fetching your data...</Text>
       </View>
     );
   }
@@ -91,7 +96,7 @@ export default function RecentExpenses() {
     <View style={styles.container}>
       {isOffline && (
         <View style={styles.offlineBanner}>
-          <Text style={styles.offlineText}>Offline Mode: Data may not be synced</Text>
+          <Text style={styles.offlineText}>Offline Mode: Data sync is paused</Text>
         </View>
       )}
 
