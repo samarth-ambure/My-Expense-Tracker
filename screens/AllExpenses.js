@@ -4,6 +4,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { getExpensesFromStorage, saveExpensesToStorage } from '../utils/storage';
 import { ExpenseItem } from '../components/ExpenseItem';
 import { Alert } from 'react-native';
+import { deleteExpenseFromStorage } from '../utils/storage';
 
 export default function AllExpenses() {
   const [expenses, setExpenses] = useState([]);
@@ -40,6 +41,31 @@ export default function AllExpenses() {
           const updatedList = expenses.filter(item => item.id !== id);
           setExpenses(updatedList);
           await saveExpensesToStorage(updatedList);
+        } 
+      }
+    ]
+  );
+}
+
+async function deleteHandler(id) {
+  Alert.alert(
+    "Delete Expense",
+    "Are you sure?",
+    [
+      { text: "No", style: "cancel" },
+      { 
+        text: "Yes, Delete", 
+        style: "destructive", 
+        onPress: async () => {
+          try {
+            // 1. Delete from Firebase
+            await deleteExpenseFromStorage(id);
+            // 2. Remove from local screen state
+            const updatedList = expenses.filter(item => item.id !== id);
+            setExpenses(updatedList);
+          } catch (error) {
+            Alert.alert("Error", "Could not delete from cloud.");
+          }
         } 
       }
     ]

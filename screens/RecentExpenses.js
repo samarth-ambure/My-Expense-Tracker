@@ -3,6 +3,7 @@ import { View, FlatList, StyleSheet, Text, Alert } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { getExpensesFromStorage, saveExpensesToStorage } from '../utils/storage';
 import { ExpenseItem } from '../components/ExpenseItem';
+import { deleteExpenseFromStorage } from '../utils/storage';
 
 export default function RecentExpenses() {
   const [expenses, setExpenses] = useState([]);
@@ -37,6 +38,31 @@ export default function RecentExpenses() {
       ]
     );
   }
+
+  async function deleteHandler(id) {
+  Alert.alert(
+    "Delete Expense",
+    "Are you sure?",
+    [
+      { text: "No", style: "cancel" },
+      { 
+        text: "Yes, Delete", 
+        style: "destructive", 
+        onPress: async () => {
+          try {
+            // 1. Delete from Firebase
+            await deleteExpenseFromStorage(id);
+            // 2. Remove from local screen state
+            const updatedList = expenses.filter(item => item.id !== id);
+            setExpenses(updatedList);
+          } catch (error) {
+            Alert.alert("Error", "Could not delete from cloud.");
+          }
+        } 
+      }
+    ]
+  );
+}
 
   // Filter logic: Only items from the last 7 days
   const recentExpenses = expenses.filter(exp => {
