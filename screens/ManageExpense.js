@@ -1,15 +1,16 @@
 import React, { useState, useLayoutEffect } from 'react';
 import { View, TextInput, TouchableOpacity, Text, StyleSheet, Platform, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { launchCamera } from 'react-native-image-picker'; // Required for Camera
+import * as ImagePicker from 'expo-image-picker'; // Standard Expo picker
 import axios from 'axios';
 import { saveExpensesToStorage, updateExpenseInStorage } from '../utils/storage';
 import { Calendar, Camera } from 'lucide-react-native';
 
 // VERYFI CREDENTIALS
-const VERYFI_CLIENT_ID = 'your_client_id'; 
-const VERYFI_USERNAME = 'your_username';
-const VERYFI_API_KEY = 'your_api_key';
+// VERYFI CREDENTIALS
+const VERYFI_CLIENT_ID = 'vrfZW5dvbTe8xsnNno6r9lzF12W3G7dSpXrZhYe'; 
+const VERYFI_USERNAME = 'samarthambure08';
+const VERYFI_API_KEY = '59526137528996c2b36cc597e8ccb2da';
 
 export default function ManageExpense({ route, navigation }) {
   const { token, userId } = route.params; 
@@ -24,7 +25,7 @@ export default function ManageExpense({ route, navigation }) {
   
   const [showPicker, setShowPicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isScanning, setIsScanning] = useState(false); // Loading state for AI
+  const [isScanning, setIsScanning] = useState(false); 
   
   const [errors, setErrors] = useState({ amount: false, payTo: false });
 
@@ -32,22 +33,24 @@ export default function ManageExpense({ route, navigation }) {
     navigation.setOptions({ title: isEditing ? 'Edit Expense' : 'Add Expense' });
   }, [navigation, isEditing]);
 
-  // AI SCANNING LOGIC
+  // AI SCANNING LOGIC - UPDATED FOR EXPO
   const takePhotoAndScan = async () => {
-    const options = {
-      mediaType: 'photo',
-      includeBase64: true, // Veryfi needs base64
-      maxWidth: 2000,
-      maxHeight: 2000,
-    };
-
-    const result = await launchCamera(options);
-
-    if (result.didCancel) return;
-    if (result.errorCode) {
-      Alert.alert('Camera Error', result.errorMessage);
+    // 1. Request Permission
+    const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+    if (!granted) {
+      Alert.alert("Permission Required", "Please allow camera access to scan receipts.");
       return;
     }
+
+    // 2. Launch Camera
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.7, // Slightly lower quality for faster AI upload
+      base64: true, // Required for Veryfi
+    });
+
+    if (result.canceled) return;
 
     const base64Data = result.assets[0].base64;
     setIsScanning(true);
@@ -56,28 +59,27 @@ export default function ManageExpense({ route, navigation }) {
       const response = await axios.post(
         'https://api.veryfi.com/api/v8/partner/documents',
         {
-          file_data: base64Data, //
+          file_data: base64Data,
           file_name: 'receipt.jpg',
         },
         {
           headers: {
             'Content-Type': 'application/json',
             'CLIENT-ID': VERYFI_CLIENT_ID,
-            'AUTHORIZATION': `apikey ${VERYFI_USERNAME}:${VERYFI_API_KEY}`, //
+            'AUTHORIZATION': `apikey ${VERYFI_USERNAME}:${VERYFI_API_KEY}`,
           },
         }
       );
 
       const extracted = response.data;
-      // Map AI data to form
       if (extracted.total) setAmount(extracted.total.toString());
       if (extracted.vendor?.name) setPayTo(extracted.vendor.name);
       if (extracted.date) setDate(new Date(extracted.date));
 
-      Alert.alert("Success", "Receipt scanned successfully!");
+      Alert.alert("Success", "D-Mart receipt scanned!");
     } catch (error) {
       console.error(error);
-      Alert.alert("Scan Failed", "AI could not read the receipt. Please enter manually.");
+      Alert.alert("Scan Failed", "AI could not read the receipt.");
     } finally {
       setIsScanning(false);
     }
@@ -115,18 +117,8 @@ export default function ManageExpense({ route, navigation }) {
     }
   }
 
-  if (isSubmitting) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={{marginTop: 10}}>Syncing with Cloud...</Text>
-      </View>
-    );
-  }
-
   return (
     <ScrollView style={styles.container}>
-      {/* AI SCAN BUTTON */}
       <TouchableOpacity 
         style={[styles.scanButton, isScanning && styles.disabledBtn]} 
         onPress={takePhotoAndScan}
@@ -184,7 +176,6 @@ export default function ManageExpense({ route, navigation }) {
 
 const styles = StyleSheet.create({
     container: { flex: 1, padding: 24, backgroundColor: '#F8F9FA' },
-    centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     scanButton: { backgroundColor: '#34C759', padding: 15, borderRadius: 10, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
     scanBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
     disabledBtn: { backgroundColor: '#A5D6A7' },
