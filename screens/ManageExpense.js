@@ -1,12 +1,22 @@
 import React, { useState, useLayoutEffect } from 'react';
-import { View, TextInput, TouchableOpacity, Text, StyleSheet, Platform, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { 
+  View, 
+  TextInput, 
+  TouchableOpacity, 
+  Text, 
+  StyleSheet, 
+  Platform, 
+  ScrollView, 
+  Alert, 
+  ActivityIndicator,
+  ToastAndroid 
+} from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import * as ImagePicker from 'expo-image-picker'; // Standard Expo picker
+import * as ImagePicker from 'expo-image-picker';
 import axios from 'axios';
 import { saveExpensesToStorage, updateExpenseInStorage } from '../utils/storage';
 import { Calendar, Camera } from 'lucide-react-native';
 
-// VERYFI CREDENTIALS
 // VERYFI CREDENTIALS
 const VERYFI_CLIENT_ID = 'vrfZW5dvbTe8xsnNno6r9lzF12W3G7dSpXrZhYe'; 
 const VERYFI_USERNAME = 'samarthambure08';
@@ -33,21 +43,18 @@ export default function ManageExpense({ route, navigation }) {
     navigation.setOptions({ title: isEditing ? 'Edit Expense' : 'Add Expense' });
   }, [navigation, isEditing]);
 
-  // AI SCANNING LOGIC - UPDATED FOR EXPO
   const takePhotoAndScan = async () => {
-    // 1. Request Permission
     const { granted } = await ImagePicker.requestCameraPermissionsAsync();
     if (!granted) {
       Alert.alert("Permission Required", "Please allow camera access to scan receipts.");
       return;
     }
 
-    // 2. Launch Camera
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      quality: 0.7, // Slightly lower quality for faster AI upload
-      base64: true, // Required for Veryfi
+      quality: 0.7,
+      base64: true,
     });
 
     if (result.canceled) return;
@@ -72,14 +79,23 @@ export default function ManageExpense({ route, navigation }) {
       );
 
       const extracted = response.data;
+      
       if (extracted.total) setAmount(extracted.total.toString());
       if (extracted.vendor?.name) setPayTo(extracted.vendor.name);
       if (extracted.date) setDate(new Date(extracted.date));
 
-      Alert.alert("Success", "D-Mart receipt scanned!");
+      // TOAST NOTIFICATION FOR ANDROID
+      if (Platform.OS === 'android') {
+        ToastAndroid.showWithGravity(
+          "Receipt Scanned Successfully!",
+          ToastAndroid.SHORT,
+          ToastAndroid.BOTTOM
+        );
+      }
+
     } catch (error) {
       console.error(error);
-      Alert.alert("Scan Failed", "AI could not read the receipt.");
+      Alert.alert("Scan Failed", "AI could not read the receipt. Please enter details manually.");
     } finally {
       setIsScanning(false);
     }
