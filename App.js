@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Clock, List, Plus, LogOut } from 'lucide-react-native';
-import { TouchableOpacity } from 'react-native';
+import { TouchableOpacity, Alert } from 'react-native';
 
 import RecentExpenses from './screens/RecentExpenses';
 import AllExpenses from './screens/AllExpenses';
@@ -14,9 +14,16 @@ import AuthScreen from './screens/AuthScreen';
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
-// We pass auth info as props to the screens
 function ExpensesOverview({ navigation, route }) {
-  const { token, userId, onLogout } = route.params;
+  const { token, userId } = route.params;
+
+  // This handles the logout without passing functions through params
+  const logoutHandler = () => {
+    Alert.alert("Logout", "Are you sure?", [
+      { text: "No" },
+      { text: "Yes", onPress: () => navigation.navigate('Auth', { logout: true }) }
+    ]);
+  };
 
   return (
     <Tab.Navigator 
@@ -27,7 +34,7 @@ function ExpensesOverview({ navigation, route }) {
         tabBarActiveTintColor: '#FFD700',
         tabBarInactiveTintColor: 'white',
         headerLeft: () => (
-          <TouchableOpacity onPress={onLogout} style={{ marginLeft: 15 }}>
+          <TouchableOpacity onPress={logoutHandler} style={{ marginLeft: 15 }}>
             <LogOut color="white" size={20} />
           </TouchableOpacity>
         ),
@@ -71,11 +78,6 @@ export default function App() {
     setUserId(uid);
   }
 
-  function logoutHandler() {
-    setAuthToken(null);
-    setUserId(null);
-  }
-
   return (
     <SafeAreaProvider>
       <NavigationContainer>
@@ -84,17 +86,22 @@ export default function App() {
           headerTintColor: 'white',
         }}>
           {!authToken ? (
-            // AUTH STACK
             <Stack.Screen name="Auth" options={{ headerShown: false }}>
-              {(props) => <AuthScreen {...props} onAuthenticate={authHandler} />}
+              {(props) => {
+                // If we returned here via logout navigation, clear the state
+                if (props.route.params?.logout) {
+                  setAuthToken(null);
+                  setUserId(null);
+                }
+                return <AuthScreen {...props} onAuthenticate={authHandler} />;
+              }}
             </Stack.Screen>
           ) : (
-            // MAIN APP STACK
             <>
               <Stack.Screen 
                 name="ExpensesOverview" 
                 component={ExpensesOverview} 
-                initialParams={{ token: authToken, userId: userId, onLogout: logoutHandler }}
+                initialParams={{ token: authToken, userId: userId }}
                 options={{ headerShown: false }} 
               />
               <Stack.Screen 
