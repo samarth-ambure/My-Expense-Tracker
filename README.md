@@ -20,11 +20,3 @@ An advanced, full-stack React Native expense management application built with *
 * **Navigation**: React Navigation (Stack & Bottom Tabs)
 * **Icons**: Lucide-React-Native
 
-## 📸 Screenshots
-*(Add your screenshots here later)*
-
-## 🛠️ Installation & Setup
-
-1. **Clone the repository**:
-   ```bash
-   git clone [https://github.com/samarth-ambure/My-Expense-Tracker.git](https://github.com/samarth-ambure/My-Expense-Tracker.git)
